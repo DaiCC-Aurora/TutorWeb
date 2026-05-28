@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* Claude 设计系统配色方案 */
+:root {
+  --bg-primary: #F5F0EB;
+  --bg-card: #FFFFFF;
+  --bg-surface: #F0EBE5;
+  --bg-sidebar: #F0EBE5;
+  --text-primary: #1C1B1A;
+  --text-secondary: #6B6560;
+  --text-tertiary: #9C958E;
+  --border-light: #E5DDD6;
+  --border-medium: #D4C9C0;
+  --accent: #D97706;
+  --accent-hover: #F59E0B;
+  --accent-light: #FEF3C7;
+  --accent-subtle: #FFFBEB;
+  --success: #22C55E;
+  --error: #EF4444;
+  --error-bg: #FEF2F2;
+  --warning: #F59E0B;
+  --info: #3B82F6;
+  --user-bubble: #D97706;
+  --user-bubble-text: #FFFFFF;
+  --ai-bubble: #F0EBE5;
+  --ai-bubble-text: #1C1B1A;
+}
+
+.dark {
+  --bg-primary: #1C1B1A;
+  --bg-card: #262422;
+  --bg-surface: #201E1C;
+  --bg-sidebar: #201E1C;
+  --text-primary: #EDE9E3;
+  --text-secondary: #9C958E;
+  --text-tertiary: #6B6560;
+  --border-light: #34312E;
+  --border-medium: #4A4541;
+  --accent: #F59E0B;
+  --accent-hover: #D97706;
+  --accent-light: #78350F;
+  --accent-subtle: #451A03;
+  --success: #22C55E;
+  --error: #EF4444;
+  --error-bg: #7F1D1D;
+  --warning: #F59E0B;
+  --info: #3B82F6;
+  --user-bubble: #F59E0B;
+  --user-bubble-text: #1C1B1A;
+  --ai-bubble: #262422;
+  --ai-bubble-text: #EDE9E3;
+}
+
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-border-light: var(--border-light);
+  --color-border-medium: var(--border-medium);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-light);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-user-bubble: var(--user-bubble);
+  --color-user-bubble-text: var(--user-bubble-text);
+  --color-ai-bubble: var(--ai-bubble);
+  --color-ai-bubble-text: var(--ai-bubble-text);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Markdown 样式 */
+.prose {
+  max-width: none;
+}
+
+.prose p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose p:first-child {
+  margin-top: 0;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose code {
+  background-color: rgba(0, 0, 0, 0.08);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.dark .prose code {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.prose pre {
+  background-color: #F0EBE5;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.dark .prose pre {
+  background-color: #262422;
+}
+
+.prose ul, .prose ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose blockquote {
+  border-left: 3px solid var(--border-light);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.prose th, .prose td {
+  border: 1px solid var(--border-light);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--bg-surface);
+  font-weight: 600;
+}
+
+/* KaTeX 数学公式样式 */
+.katex-display {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2em 0;
+}
+
+.katex {
+  font-size: 1.1em;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
