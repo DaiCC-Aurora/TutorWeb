@@ -2,8 +2,8 @@ name: Deploy to Vercel
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
+    branches: [ master ]    # 推送到 master 分支时触发
+  pull_request:         # PR 时部署预览版本
     branches: [ master ]
 
 jobs:
@@ -11,20 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: '9.8.0'
-      - name: Install Dependencies
-        run: pnpm install
-      - name: Build
-        run: pnpm build
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
+      - uses: amondnet/vercel-action@v42
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
