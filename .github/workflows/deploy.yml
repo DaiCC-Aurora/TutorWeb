@@ -2,27 +2,29 @@ name: Deploy to Vercel
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
+    branches: [ master ]    # 推送到 master 分支时触发
+  pull_request:         # PR 时部署预览版本
     branches: [ master ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: '9.8.0'
-      - name: Install Dependencies
-        run: pnpm install
-      - name: Build
-        run: pnpm build
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build   # 输出目录假设为 dist 或 .next/static 等，根据框架调整
+
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:
