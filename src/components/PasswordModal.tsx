@@ -6,18 +6,25 @@ import { usePassword } from '@/contexts/PasswordContext';
 export default function PasswordModal() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const { verifyPassword } = usePassword();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (verifyPassword(password)) {
-      // 密码正确，不显示模态框（isAuthenticated 会变成 true）
+    if (verifying) return;
+
+    setVerifying(true);
+    setError(false);
+
+    const success = await verifyPassword(password);
+
+    if (success) {
       setError(false);
     } else {
-      // 密码错误，显示错误提示
       setError(true);
       setPassword('');
     }
+    setVerifying(false);
   };
 
   return (
@@ -49,11 +56,12 @@ export default function PasswordModal() {
                   setError(false);
                 }}
                 placeholder="请输入密码"
+                disabled={verifying}
                 className={`w-full px-4 py-3 rounded-lg border ${
                   error
                     ? 'border-error focus:ring-error focus:border-error'
                     : 'border-border-medium focus:ring-accent focus:border-accent'
-                } bg-bg-card text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 transition-all`}
+                } bg-bg-card text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 transition-all disabled:opacity-50`}
                 autoFocus
               />
               {error && (
@@ -68,9 +76,20 @@ export default function PasswordModal() {
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+              disabled={verifying}
+              className="w-full py-3 px-4 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              确认访问
+              {verifying ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  验证中...
+                </>
+              ) : (
+                '确认访问'
+              )}
             </button>
           </form>
 
