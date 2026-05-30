@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import { MessageHistoryProvider } from "@/contexts/MessageHistoryContext";
 import { PasswordProvider } from "@/contexts/PasswordContext";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
         <MessageHistoryProvider>
           <PasswordProvider>{children}</PasswordProvider>
         </MessageHistoryProvider>
+        <Analytics />
       </body>
     </html>
   );
