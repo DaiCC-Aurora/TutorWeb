@@ -12,7 +12,11 @@ const COOKIE_NAME = 'auth_token';
 const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 function getSecret(): string {
-  const secret = process.env.APP_AUTH_SECRET || process.env.APP_PASSWORD || '';
+  return process.env.APP_AUTH_SECRET || process.env.APP_PASSWORD || '';
+}
+
+function requireSecret(): string {
+  const secret = getSecret();
   if (!secret) {
     throw new Error(
       'Missing APP_PASSWORD or APP_AUTH_SECRET environment variable.'
@@ -22,9 +26,10 @@ function getSecret(): string {
 }
 
 async function getHmacKey(usage: 'sign' | 'verify'): Promise<CryptoKey> {
+  const secret = getSecret() || 'dev-fallback-key-for-local-only';
   return crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(getSecret()),
+    new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     [usage]

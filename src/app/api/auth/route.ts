@@ -8,9 +8,18 @@ import { createToken, setAuthCookie } from '@/lib/auth';
  * 成功时设置 httpOnly Cookie，失败返回 401。
  */
 export async function POST(request: NextRequest) {
+  let password: string;
   try {
-    const { password } = await request.json();
+    const body = await request.json();
+    password = body.password;
+  } catch {
+    return NextResponse.json(
+      { error: '请求格式错误，请检查请求数据' },
+      { status: 400 }
+    );
+  }
 
+  try {
     const expectedPassword = process.env.APP_PASSWORD;
 
     // 如果环境变量未设置，允许访问（开发环境）
@@ -34,8 +43,8 @@ export async function POST(request: NextRequest) {
     );
   } catch {
     return NextResponse.json(
-      { error: '请求格式错误' },
-      { status: 400 }
+      { error: '服务端验证失败，请检查环境变量配置' },
+      { status: 500 }
     );
   }
 }
