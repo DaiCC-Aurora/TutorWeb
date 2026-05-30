@@ -13,6 +13,7 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
   const [showCamera, setShowCamera] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,6 +40,18 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
       }
     };
   }, []);
+
+  // 当 showCamera 与 cameraStream 都就绪后，将流挂载到 <video> 元素上
+  // 使用 useEffect 确保在 React 提交 DOM（videoRef.current 可用）之后执行
+  useEffect(() => {
+    if (!showCamera || !cameraStream) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = cameraStream;
+    video.play().catch(() => {});
+  }, [showCamera, cameraStream]);
 
   // 监听 video canplay 事件确定摄像头就绪（按 MDN 示例）
   const handleCanPlay = useCallback(() => {
@@ -98,7 +111,7 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
     if (!navigator.mediaDevices?.getUserMedia) return null;
     try {
       return await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
     } catch {
@@ -111,6 +124,7 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    setCameraStream(null);
     setCameraReady(false);
     setShowCamera(false);
   }, []);
@@ -135,6 +149,7 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    setCameraStream(null);
     fileInputRef.current?.click();
   }, []);
 
@@ -150,7 +165,7 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
     if (!stream) {
       // 错误已在预申请阶段发生，再次尝试获取具体错误信息
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       } catch (err) {
         setCameraError(resolveCameraError(err));
       }
@@ -158,11 +173,8 @@ export default function ImageUploader({ onImageSelect }: ImageUploaderProps) {
     }
 
     streamRef.current = stream;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play();
-    }
+    // 交给 useEffect 在 DOM 就绪后将流挂载到 <video> 上
+    setCameraStream(stream);
   }, [acquireStream]);
 
   const capturePhoto = useCallback(() => {
