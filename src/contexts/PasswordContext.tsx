@@ -1,11 +1,12 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 interface PasswordContextType {
   isAuthenticated: boolean;
-  verifyPassword: (password: string) => boolean;
-  logout: () => void;
+  isLoading: boolean;
+  verifyPassword: (password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 
 const PasswordContext = createContext<PasswordContextType | undefined>(undefined);
@@ -14,38 +15,58 @@ export function PasswordProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // 检查 localStorage 中是否有缓存的登录状态
-    const cachedAuth = localStorage.getItem('app_authenticated');
-    if (cachedAuth === 'true') {
-      setIsAuthenticated(true);
-    } else {
-      // 如果没有缓存，强制清除（确保测试时总是需要输入密码）
-      localStorage.removeItem('app_authenticated');
+  /**
+   * 调用 API 检查当前认证状态
+   *
+   * httpOnly Cookie 会自动随请求发送，
+   * 因此即使 localStorage 被篡改也无法绕过。
+   */
+  const checkAuth = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+      setIsAuthenticated(data.authenticated === true);
+    } catch {
+      // 网络或服务端异常 — 保守处理，视为未认证
+      setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
-  const verifyPassword = (password: string): boolean => {
-    const expectedPassword = process.env.NEXT_PUBLIC_APP_PASSWORD;
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
-    // 如果环境变量未设置，允许访问（开发环境）
-    if (!expectedPassword || expectedPassword === 'your_password_here') {
-      setIsAuthenticated(true);
-      return true;
-    }
+  const verifyPassword = async (password: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
 
-    const isCorrect = password === expectedPassword;
-    if (isCorrect) {
-      setIsAuthenticated(true);
-      localStorage.setItem('app_authenticated', 'true');
+      const data = await response.json();
+
+      if (data.authenticated) {
+        setIsAuthenticated(true);
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
     }
-    return isCorrect;
   };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('app_authenticated');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // 忽略登出请求的网络错误
+    } finally {
+      setIsAuthenticated(false);
+    }
   };
 
   if (isLoading) {
@@ -53,7 +74,7 @@ export function PasswordProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <PasswordContext.Provider value={{ isAuthenticated, verifyPassword, logout }}>
+    <PasswordContext.Provider value={{ isAuthenticated, isLoading, verifyPassword, logout }}>
       {children}
     </PasswordContext.Provider>
   );
