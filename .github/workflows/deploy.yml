@@ -3,8 +3,6 @@ name: Deploy to Vercel
 on:
   push:
     branches: [ master ]    # 推送到 master 分支时触发
-  pull_request:         # PR 时部署预览版本
-    branches: [ master ]
 
 jobs:
   deploy:
