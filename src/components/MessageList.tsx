@@ -4,13 +4,19 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeHighlight from 'rehype-highlight';
+import { ReactNode, useState } from 'react';
+import 'highlight.js/styles/github-dark.min.css';
 import 'katex/dist/katex.min.css';
-import { ReactNode } from 'react';
 
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  metadata?: {
+    mode?: 'chat' | 'solve' | 'visualize';
+    hasImage?: boolean;
+  };
 }
 
 interface MessageListProps {
@@ -30,7 +36,7 @@ function CodeBlock({ language, children }: { language?: string; children: ReactN
   };
 
   return (
-    <div className="relative group">
+    <div className="relative group my-3">
       <div className="flex items-center justify-between px-4 py-1.5 text-xs text-text-secondary bg-black/5 dark:bg-white/5 rounded-t-lg border-b border-border-light">
         <span>{language || 'code'}</span>
         <button
@@ -50,8 +56,128 @@ function CodeBlock({ language, children }: { language?: string; children: ReactN
   );
 }
 
+/** CSV 表格展示组件 */
+function CSVViewer({ content }: { content: string }) {
+  const lines = content.trim().split('\n');
+  if (lines.length < 2) return null;
+
+  const headers = lines[0].split(',').map((h) => h.trim());
+  const rows = lines.slice(1).map((line) => line.split(',').map((cell) => cell.trim()));
+
+  return (
+    <div className="my-3 overflow-x-auto">
+      <table className="min-w-full border-collapse">
+        <thead>
+          <tr className="bg-bg-surface dark:bg-bg-card">
+            {headers.map((header, i) => (
+              <th key={i} className="border border-border-light px-4 py-2 text-left font-semibold text-text-primary">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="hover:bg-bg-surface/50 dark:hover:bg-bg-card/50">
+              {headers.map((_, colIndex) => (
+                <td key={`${rowIndex}-${colIndex}`} className="border border-border-light px-4 py-2 text-sm text-text-secondary">
+                  {row[colIndex] || ''}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** HTML/SVG 内容展示组件 */
+function HTMLViewer({ content }: { content: string }) {
+  // 检查是否为 SVG 内容
+  const isSVG = content.includes('<svg') || content.includes('</svg>');
+
+  if (isSVG) {
+    return (
+      <div className="my-3 p-4 bg-bg-surface dark:bg-bg-card rounded-lg border border-border-light overflow-auto flex justify-center">
+        <div dangerouslySetInnerHTML={{ __html: content }} />
+      </div>
+    );
+  }
+
+  // 简单的 HTML 预览 - 实际项目中应该使用沙箱环境
+  return (
+    <div className="my-3 p-4 bg-bg-surface dark:bg-bg-card rounded-lg border border-border-light overflow-x-auto">
+      <div dangerouslySetInnerHTML={{ __html: content }} />
+    </div>
+  );
+}
+
+/** 步骤式解答展示（Solve 模式） */
+function StepByStepSolver({ content }: { content: string }) {
+  // 尝试解析步骤标记（如 "步骤 1:"、"Step 1:"、"###" 等）
+  const stepRegex = /(?:步骤\s*[一二三四五\d]+|step\s*\d+|###.*?###|\*?\s*\d+\.\s+)/gi;
+  const steps = content.split(stepRegex).filter(Boolean);
+
+  if (steps.length < 2) {
+    return null;
+  }
+
+  const formattedSteps: string[] = [];
+  for (let i = 0; i < steps.length; i += 2) {
+    if (i + 1 < steps.length) {
+      formattedSteps.push(steps[i + 1]);
+    }
+  }
+
+  if (formattedSteps.length < 2) return null;
+
+  return (
+    <div className="my-3 space-y-3">
+      {formattedSteps.map((step, index) => (
+        <div
+          key={index}
+          className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center bg-purple-500 text-white rounded-full text-sm font-bold">
+              {index + 1}
+            </span>
+            <div className="prose prose-sm dark:prose-invert max-w-none flex-1">
+              <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {step}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 图表可视化容器（占位符，后续可扩展 Chart.js/Recharts） */
+function ChartViewer({ chartData }: { chartData: string }) {
+  // 解析简单的图表定义
+  try {
+    const data = JSON.parse(chartData);
+    return (
+      <div className="my-3 p-4 bg-bg-surface dark:bg-bg-card rounded-lg border border-green-200 dark:border-green-800">
+        <div className="text-center text-green-700 dark:text-green-400 mb-4">
+          📊 图表可视化区域
+        </div>
+        <pre className="text-xs text-text-secondary overflow-x-auto">{chartData}</pre>
+      </div>
+    );
+  } catch {
+    return null;
+  }
+}
+
 /** 自定义 Markdown 渲染组件映射 */
-const markdownComponents = {
+const markdownComponents: any = {
   code({ node, className, children, ...props }: any) {
     const isInline = !className?.includes('language-');
     const match = /language-(\w+)/.exec(className || '');
@@ -61,7 +187,6 @@ const markdownComponents = {
     return <CodeBlock language={match?.[1]}>{children}</CodeBlock>;
   },
   pre({ children }: any) {
-    // If the <pre> contains only our <CodeBlock>, let CodeBlock handle it
     const child = children?.[0] || children;
     if (child?.type === CodeBlock || child?.props?.className === 'inline-code') {
       return <>{children}</>;
@@ -72,6 +197,53 @@ const markdownComponents = {
     return <div className="table-wrapper"><table>{children}</table></div>;
   },
 };
+
+/** 检测消息内容类型并返回相应渲染器 */
+function detectContentType(content: string, mode?: 'chat' | 'solve' | 'visualize'): { type: 'markdown' | 'csv' | 'html' | 'chart' | 'stepbystep'; data: any } {
+  const trimmed = content.trim();
+
+  // 检查是否为 CSV（至少两行，逗号分隔）
+  const lines = trimmed.split('\n');
+  if (lines.length >= 2 && lines.every((line) => line.includes(','))) {
+    return { type: 'csv', data: trimmed };
+  }
+
+  // 检查是否为 HTML/SVG（包含 HTML 或 SVG 标签）
+  if (/^<html|<!DOCTYPE|<body/i.test(trimmed) ||
+      trimmed.includes('<div') ||
+      trimmed.includes('<svg') ||
+      trimmed.includes('</svg>') ||
+      (trimmed.includes('<') && trimmed.includes('>'))) {
+    return { type: 'html', data: trimmed };
+  }
+
+  // 检查是否为图表 JSON
+  if (trimmed.startsWith('{') && trimmed.endsWith('}') && (trimmed.includes('"chartType"') || trimmed.includes('"data"'))) {
+    try {
+      JSON.parse(trimmed);
+      return { type: 'chart', data: trimmed };
+    } catch {
+      // Not valid JSON
+    }
+  }
+
+  // Solve 模式 - 分步推理（更严格的检测）
+  const stepPatterns = [
+    /步骤\s*[一二三四五\d]+:/i,           // 步骤 1:
+    /步骤\s*[一二三四五\d]+．/i,           // 步骤一。
+    /Step\s*\d+[:\.]?\s*/i,                // Step 1: 或 Step 1.
+    /^\d+\.\s+[A-Z]/i,                     // 1. First...
+    /^###\s*步骤/i,                        // ### 步骤
+    /第\s*[一二三四五\d]+步\s*[:.:]/i,     // 第一步：
+  ];
+
+  const isStepByStep = stepPatterns.some(pattern => pattern.test(trimmed));
+  if (isStepByStep) {
+    return { type: 'stepbystep', data: trimmed };
+  }
+
+  return { type: 'markdown', data: trimmed };
+}
 
 export default function MessageList({ messages }: MessageListProps) {
   if (messages.length === 0) {
@@ -98,13 +270,43 @@ export default function MessageList({ messages }: MessageListProps) {
           >
             {message.role === 'assistant' ? (
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath, remarkGfm]}
-                  rehypePlugins={[rehypeKatex]}
-                  components={markdownComponents}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                {/* 检测内容类型并渲染对应组件 */}
+                {(() => {
+                  const mode = message.metadata?.mode;
+                  const { type, data } = detectContentType(message.content, mode);
+
+                  switch (type) {
+                    case 'csv':
+                      return <CSVViewer content={data} />;
+                    case 'html':
+                      return <HTMLViewer content={data} />;
+                    case 'chart':
+                      return <ChartViewer chartData={data} />;
+                    case 'stepbystep':
+                      return (
+                        <>
+                          <StepByStepSolver content={data} />
+                          <ReactMarkdown
+                            remarkPlugins={[remarkMath, remarkGfm]}
+                            rehypePlugins={[rehypeKatex, rehypeHighlight]}
+                            components={markdownComponents}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        </>
+                      );
+                    default:
+                      return (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath, remarkGfm]}
+                          rehypePlugins={[rehypeKatex, rehypeHighlight]}
+                          components={markdownComponents}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      );
+                  }
+                })()}
               </div>
             ) : (
               <p className="text-sm sm:text-base whitespace-pre-wrap break-words">

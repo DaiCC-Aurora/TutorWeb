@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useMessageHistory, type ConversationType } from '@/contexts/MessageHistoryContext';
+import { ReactNode } from 'react';
+import { useMessageHistory, type ConversationType, type Conversation } from '@/contexts/MessageHistoryContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface SidebarProps {
 }
 
 // 导航菜单配置
-const NAV_ITEMS: { label: string; href: string; type: ConversationType; icon: JSX.Element; description: string }[] = [
+const NAV_ITEMS: { label: string; href: string; type: ConversationType; icon: ReactNode; description: string }[] = [
   {
     label: 'Chat',
     href: '/chat',
@@ -152,47 +153,55 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
           ) : (
             <div className="space-y-1">
               {filteredConversations.map((conv) => (
-                <Link
+                <div
                   key={conv.id}
-                  href={getConversationHref(conv.id)}
-                  onClick={() => {
-                    if (window.innerWidth < 1024) {
-                      onClose();
-                    }
-                  }}
-                  className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`group flex flex-col cursor-pointer transition-colors ${
                     currentConversationId === conv.id
                       ? 'bg-accent-subtle text-accent'
                       : 'hover:bg-bg-surface text-text-secondary'
                   }`}
                 >
-                  <div className="flex-1 min-w-0">
+                  {/* 会话标题区域 */}
+                  <Link
+                    href={getConversationHref(conv.id)}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) {
+                        onClose();
+                      }
+                    }}
+                    className="flex-1 p-3"
+                  >
                     <p className="text-sm font-medium truncate">{conv.title}</p>
                     <p className="text-xs text-text-tertiary mt-0.5">
                       {formatDate(conv.updated_at)} · {conv.messageCount || 0} 条消息
                     </p>
-                  </div>
-                  <button
-                    onClick={(e) => handleDelete(e, conv.id)}
-                    disabled={deletingId === conv.id}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all disabled:opacity-50"
-                    title="删除对话"
-                  >
-                    <svg
-                      className="w-4 h-4 text-red-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  </Link>
+
+                  {/* 操作按钮区域 - 悬停显示 */}
+                  <div className={`flex items-center justify-end gap-1 px-3 pb-3 ${currentConversationId === conv.id ? '' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <button
+                      onClick={(e) => handleDelete(e, conv.id)}
+                      disabled={deletingId === conv.id}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all disabled:opacity-50"
+                      title="删除对话"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                </Link>
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                      <span>删除</span>
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}

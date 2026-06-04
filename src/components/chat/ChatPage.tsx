@@ -7,9 +7,11 @@ import ChatInput from '@/components/ChatInput';
 import MessageList, { type Message } from '@/components/MessageList';
 import Sidebar from '@/components/Sidebar';
 import PasswordModal from '@/components/PasswordModal';
-import { useMessageHistory } from '@/contexts/MessageHistoryContext';
+import { useMessageHistory, type Conversation as Conv, type ConversationType } from '@/contexts/MessageHistoryContext';
 import { usePassword } from '@/contexts/PasswordContext';
 import { compressImage } from '@/lib/image-compressor';
+import ModeSelector, { type ChatMode } from './ModeSelector';
+import ExportSession from './ExportSession';
 
 interface ChatPageProps {
   initialSessionId?: string;
@@ -29,13 +31,19 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     saveMessage,
     loadMessages,
     fetchConversations,
+    deleteConversation,
   } = useMessageHistory();
 
   const { isAuthenticated, logout } = usePassword();
 
+  // 模式状态
+  const [currentMode, setCurrentMode] = useState<ChatMode>('chat');
+
+  // 会话相关状态
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [currentConversation, setCurrentConversation] = useState<Conv | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -48,8 +56,16 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
       loadConversationMessages(targetSessionId);
     } else {
       setMessages([]);
+      setCurrentConversation(null);
     }
   }, [sessionIdFromParams, initialSessionId]);
+
+  // 监听会话 ID 变化，重新加载消息
+  useEffect(() => {
+    if (sessionIdFromParams && sessionIdFromParams !== currentConversation?.id) {
+      loadConversationMessages(sessionIdFromParams);
+    }
+  }, [sessionIdFromParams]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,12 +97,25 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   const loadConversationMessages = async (conversationId: string) => {
     try {
       const savedMessages = await loadMessages(conversationId);
+      // 根据会话类型推断模式（这里简单使用'chat'作为默认）
+      const conversation = conversations.find((c) => c.id === conversationId);
+      const inferredMode: 'chat' | 'solve' | 'visualize' =
+        conversation?.type === 'co-writer' ? 'chat' : 'chat';
+
       const convertedMessages: Message[] = savedMessages.map((m) => ({
         role: m.role,
         content: m.content,
         timestamp: new Date(m.created_at),
+        metadata: {
+          hasImage: m.has_image,
+          mode: m.role === 'assistant' ? inferredMode : undefined,
+        },
       }));
       setMessages(convertedMessages);
+
+      // 获取会话信息
+      const conv = conversations.find((c) => c.id === conversationId);
+      setCurrentConversation(conv || null);
       setCurrentConversationId(conversationId);
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -94,18 +123,32 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     }
   };
 
-  // Note: Navigation is now handled by Sidebar component using Next.js Link
-  // This function is kept for compatibility but no longer used for navigation
-
   const handleNewChat = async () => {
     setSelectedImage(null);
     setPreviewUrl(null);
     setMessages([]);
+    setCurrentConversation(null);
     setCurrentConversationId(null);
+    setCurrentMode('chat');
     setError(null);
     router.push('/chat');
     await fetchConversations('chat');
     setSidebarOpen(false);
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个对话吗？')) {
+      try {
+        await deleteConversation(id);
+        if (currentConversationId === id) {
+          handleNewChat();
+        }
+      } catch (err) {
+        console.error('Failed to delete session:', err);
+        alert('删除失败，请重试');
+      }
+    }
   };
 
   const handleAskQuestion = async (prompt: string) => {
@@ -121,19 +164,26 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
       role: 'user',
       content: prompt,
       timestamp: new Date(),
+      metadata: { hasImage: !!selectedImage },
     };
     setMessages((prev) => [...prev, userMessage]);
 
     try {
       let conversationId = currentConversationId;
       if (!conversationId) {
-        conversationId = await createConversation(prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''), 'chat');
+        // 根据模式生成标题前缀
+        const modePrefix = currentMode === 'chat' ? '[Chat]' : currentMode === 'solve' ? '[Solve]' : '[Visualize]';
+        conversationId = await createConversation(
+          `${modePrefix} ${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}`,
+          'chat' as ConversationType
+        );
         setCurrentConversationId(conversationId);
         router.push(`/chat/${conversationId}`);
       }
 
       const formData = new FormData();
       formData.append('prompt', prompt);
+      formData.append('mode', currentMode);
       if (selectedImage) {
         formData.append('image', selectedImage);
       }
@@ -155,6 +205,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
         role: 'assistant',
         content: '',
         timestamp: new Date(),
+        metadata: { mode: currentMode },
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
@@ -222,50 +273,36 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
               </svg>
             </button>
             <h1 className="text-lg sm:text-xl font-bold text-text-primary">
-              Aurora Tutor - Chat
+              Aurora Tutor - {currentMode === 'chat' ? 'Chat' : currentMode === 'solve' ? 'Solve' : 'Visualize'}
             </h1>
-            <button
-              onClick={logout}
-              className="text-xs text-text-secondary hover:text-text-primary transition-colors"
-            >
-              退出
-            </button>
-            {selectedImage && (
-              <span className="text-xs sm:text-sm text-text-secondary flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="hidden sm:inline">Image attached</span>
-                <span className="sm:hidden">📷</span>
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {/* 会话导出 */}
+              {currentConversation && (
+                <ExportSession
+                  conversation={currentConversation}
+                  messages={messages}
+                />
+              )}
+              <button
+                onClick={logout}
+                className="text-xs text-text-secondary hover:text-text-primary transition-colors"
+              >
+                退出
+              </button>
+            </div>
           </div>
         </header>
 
         <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6 min-h-0">
+          {/* 模式选择器 */}
           <section className="flex-shrink-0">
-            {!previewUrl ? (
-              <ImageUploader
-                onImageSelect={handleImageSelect}
-                onUpload={async () => {}}
-              />
-            ) : (
-              <div className="relative w-full max-w-sm mx-auto">
-                <div className="relative aspect-square rounded-lg overflow-hidden bg-bg-surface dark:bg-bg-card border border-border-light">
-                  <img
-                    src={previewUrl}
-                    alt="Selected"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <button
-                  onClick={handleClearImage}
-                  className="mt-2 w-full py-2 text-sm text-error hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                >
-                  Remove Image
-                </button>
-              </div>
-            )}
+            <ModeSelector
+              currentMode={currentMode}
+              onChangeMode={(mode) => {
+                setCurrentMode(mode);
+                setCurrentMode(mode);
+              }}
+            />
           </section>
 
           {error && (
@@ -290,6 +327,31 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
               </div>
             )}
             <div ref={messagesEndRef} />
+          </section>
+
+          <section className="flex-shrink-0">
+            {!previewUrl ? (
+              <ImageUploader
+                onImageSelect={handleImageSelect}
+                onUpload={async () => {}}
+              />
+            ) : (
+              <div className="relative w-full max-w-sm mx-auto">
+                <div className="relative aspect-square rounded-lg overflow-hidden bg-bg-surface dark:bg-bg-card border border-border-light">
+                  <img
+                    src={previewUrl}
+                    alt="Selected"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <button
+                  onClick={handleClearImage}
+                  className="mt-2 w-full py-2 text-sm text-error hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                >
+                  Remove Image
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="flex-shrink-0">

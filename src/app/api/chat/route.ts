@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 
+type ChatMode = 'chat' | 'solve' | 'visualize';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const image = formData.get('image') as File | null;
     const prompt = formData.get('prompt') as string;
     const sessionId = formData.get('sessionId') as string;
+    const mode = (formData.get('mode') as ChatMode) || 'chat';
 
     if (!prompt || !prompt.trim()) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -38,8 +41,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 根据模式构建系统提示词
+    const systemPrompts: Record<ChatMode, string> = {
+      chat: 'You are Aurora Tutor, a helpful AI assistant for general conversations, knowledge queries, and creative discussions.',
+      solve: 'You are Aurora Solver, an expert problem-solver. When answering mathematical or logical problems, please:\n1. Break down the problem into clear steps\n2. Show detailed reasoning for each step\n3. Use LaTeX formatting for mathematical expressions (e.g., $x^2 + y^2 = z^2$)\n4. Provide a clear final answer with explanation',
+      visualize: 'You are Aurora Visualizer, specialized in creating visual content. When appropriate, you can:\n1. Generate JSON data structures for charts (e.g., {"chartType": "bar", "data": [...], "labels": [...]})\n2. Create HTML/SVG code for interactive visualizations\n3. Describe visualization concepts clearly\n4. Use CSV format for tabular data display',
+    };
+
     // 构建消息内容
-    const messagesPayload: Array<{ role: string; content: any }> = [];
+    const messagesPayload: Array<{ role: string; content: any }> = [
+      {
+        role: 'system',
+        content: [{ type: 'text', text: systemPrompts[mode] }],
+      },
+    ];
 
     if (historyMessages.length > 0) {
       messagesPayload.push(
@@ -114,8 +129,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: process.env.AI_MODEL || 'Qwen/Qwen2.5-VL-72B-Instruct',
         messages: messagesPayload,
-        max_tokens: 2048,
+        max_tokens: 4096,
         stream: true,
+        temperature: mode === 'solve' ? 0.3 : 0.7, // Solve 模式降低随机性以获得更准确的解答
       }),
     });
 
