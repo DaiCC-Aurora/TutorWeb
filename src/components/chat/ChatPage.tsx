@@ -12,6 +12,8 @@ import { usePassword } from '@/contexts/PasswordContext';
 import { compressImage } from '@/lib/image-compressor';
 import ModeSelector, { type ChatMode } from './ModeSelector';
 import ExportSession from './ExportSession';
+import ToolsPanel from '@/components/tools/ToolsPanel';
+import { type ToolId } from '@/lib/tools';
 
 interface ChatPageProps {
   initialSessionId?: string;
@@ -38,6 +40,9 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
 
   // 模式状态
   const [currentMode, setCurrentMode] = useState<ChatMode>('chat');
+
+  // 工具开关状态
+  const [enabledTools, setEnabledTools] = useState<ToolId[]>([]);
 
   // 会话相关状态
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -130,6 +135,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     setCurrentConversation(null);
     setCurrentConversationId(null);
     setCurrentMode('chat');
+    setEnabledTools([]);
     setError(null);
     router.push('/chat');
     await fetchConversations('chat');
@@ -184,6 +190,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('mode', currentMode);
+      formData.append('enabledTools', JSON.stringify(enabledTools));
       if (selectedImage) {
         formData.append('image', selectedImage);
       }
@@ -276,6 +283,11 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
               Aurora Tutor - {currentMode === 'chat' ? 'Chat' : currentMode === 'solve' ? 'Solve' : 'Visualize'}
             </h1>
             <div className="flex items-center gap-2">
+              {/* 工具面板 */}
+              <ToolsPanel
+                enabledTools={enabledTools}
+                onToolsChange={setEnabledTools}
+              />
               {/* 会话导出 */}
               {currentConversation && (
                 <ExportSession
