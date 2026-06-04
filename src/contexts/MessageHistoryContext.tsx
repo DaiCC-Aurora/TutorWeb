@@ -2,9 +2,12 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+export type ConversationType = 'chat' | 'co-writer';
+
 export interface Conversation {
   id: string;
   title: string;
+  type: ConversationType;
   created_at: string;
   updated_at: string;
   messageCount?: number;
@@ -24,8 +27,8 @@ interface MessageHistoryContextType {
   currentConversationId: string | null;
   isLoading: boolean;
   error: string | null;
-  fetchConversations: () => Promise<void>;
-  createConversation: (title: string) => Promise<string>;
+  fetchConversations: (type?: ConversationType) => Promise<void>;
+  createConversation: (title: string, type: ConversationType) => Promise<string>;
   setCurrentConversationId: (id: string | null) => void;
   deleteConversation: (id: string) => Promise<void>;
   saveMessage: (conversationId: string, role: 'user' | 'assistant', content: string, hasImage: boolean) => Promise<void>;
@@ -40,12 +43,13 @@ export function MessageHistoryProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 加载所有会话列表
-  const fetchConversations = async () => {
+  // 加载会话列表，支持按 type 过滤
+  const fetchConversations = async (type?: ConversationType) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/conversations');
+      const url = type ? `/api/conversations?type=${type}` : '/api/conversations';
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
@@ -58,15 +62,15 @@ export function MessageHistoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 创建新会话
-  const createConversation = async (title: string): Promise<string> => {
+  // 创建新会话，需要指定 type
+  const createConversation = async (title: string, type: ConversationType): Promise<string> => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, type }),
       });
       if (!response.ok) {
         throw new Error('Failed to create conversation');
@@ -134,7 +138,7 @@ export function MessageHistoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 首次加载会话列表
+  // 首次加载所有会话列表
   useEffect(() => {
     fetchConversations();
   }, []);
