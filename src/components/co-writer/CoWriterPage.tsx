@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MessageList, { type Message } from '@/components/MessageList';
-import Sidebar from '@/components/Sidebar';
-import PasswordModal from '@/components/PasswordModal';
+import SidebarShell from '@/components/SidebarShell';
 import { useMessageHistory } from '@/contexts/MessageHistoryContext';
 import { usePassword } from '@/contexts/PasswordContext';
 
@@ -112,9 +111,7 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
   const sessionIdFromParams = params.sessionId as string | undefined;
 
   const {
-    conversations,
     currentConversationId,
-    isLoading: contextLoading,
     createConversation,
     setCurrentConversationId,
     saveMessage,
@@ -122,14 +119,13 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
     fetchConversations,
   } = useMessageHistory();
 
-  const { isAuthenticated, logout } = usePassword();
+  const { logout } = usePassword();
 
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate>('chinese');
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -171,8 +167,6 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
     }
   };
 
-  // Note: Navigation is now handled by Sidebar component using Next.js Link
-
   const handleNewChat = async () => {
     setInputText('');
     setMessages([]);
@@ -180,7 +174,6 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
     setError(null);
     router.push('/co-writer');
     await fetchConversations('co-writer');
-    setSidebarOpen(false);
   };
 
   const handleSubmit = async (action?: RewriteAction) => {
@@ -243,31 +236,44 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
       setMessages((prev) => [...prev, assistantMessage]);
 
       const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let buffer = '';
 
       while (true) {
-        const { done, value } = await reader!.read();
+        const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last (possibly incomplete) line in the buffer
+        buffer = lines.pop() || '';
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
+
             try {
-              const data = JSON.parse(line.slice(6));
+              const data = JSON.parse(dataStr);
               const content = data.choices?.[0]?.delta?.content || data.choices?.[0]?.text || '';
-              accumulatedContent += content;
-              setMessages((prev) => {
-                const updated = [...prev];
-                const lastIdx = updated.length - 1;
-                if (updated[lastIdx]?.role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-                }
-                return updated;
-              });
+              if (content) {
+                accumulatedContent += content;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastIdx = updated.length - 1;
+                  if (updated[lastIdx]?.role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+                  }
+                  return updated;
+                });
+              }
             } catch (e) {
-              // 忽略解析错误
+              console.warn('SSE parse warning:', e);
             }
           }
         }
@@ -298,192 +304,163 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-surface to-bg-card dark:from-bg-sidebar dark:to-bg-primary flex">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onNewChat={handleNewChat}
-        currentConversationId={currentConversationId}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="sticky top-0 z-10 backdrop-blur-sm bg-bg-card/80 dark:bg-bg-primary/80 border-b border-border-light">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 hover:bg-bg-surface dark:hover:bg-bg-card rounded-lg"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-7 h-7 text-accent" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-                <h1 className="text-lg sm:text-xl font-bold text-text-primary">
-                  Aurora Co-Writer
-                </h1>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded hover:bg-bg-surface"
-            >
-              退出
-            </button>
+    <SidebarShell
+      title="Aurora Co-Writer"
+      titleIcon={
+        <svg className="w-6 h-6 sm:w-7 sm:h-7 text-accent" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      }
+      headerActions={
+        <button
+          onClick={logout}
+          className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded hover:bg-bg-surface"
+        >
+          退出
+        </button>
+      }
+      onNewChat={handleNewChat}
+      currentConversationId={currentConversationId}
+    >
+      {/* 提示词模板选择 */}
+      <section className="flex-shrink-0">
+        <div className="bg-bg-card rounded-xl border border-border-light p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-text-primary">选择写作模式</h2>
+            <span className="text-xs text-text-secondary">{PROMPT_TEMPLATES[selectedTemplate].description}</span>
           </div>
-        </header>
-
-        <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6 min-h-0">
-          {/* 提示词模板选择 */}
-          <section className="flex-shrink-0">
-            <div className="bg-bg-card rounded-xl border border-border-light p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-text-primary">选择写作模式</h2>
-                <span className="text-xs text-text-secondary">{PROMPT_TEMPLATES[selectedTemplate].description}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {(Object.keys(PROMPT_TEMPLATES) as PromptTemplate[]).map((templateKey) => {
-                  const template = PROMPT_TEMPLATES[templateKey];
-                  const isActive = selectedTemplate === templateKey;
-                  return (
-                    <button
-                      key={templateKey}
-                      onClick={() => setSelectedTemplate(templateKey)}
-                      className={`relative flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 text-left ${
-                        isActive
-                          ? 'border-accent bg-accent/5 shadow-sm'
-                          : 'border-border-light bg-bg-surface hover:border-accent/50 hover:bg-bg-surface-hover'
-                      }`}
-                    >
-                      <div className={`p-2 rounded-lg ${
-                        isActive ? 'bg-accent text-white' : 'bg-bg-card text-text-secondary'
-                      }`}>
-                        {template.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-text-primary">{template.label}</div>
-                        <div className="text-xs text-text-secondary mt-0.5 line-clamp-1">{template.description}</div>
-                      </div>
-                      {isActive && (
-                        <div className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-
-          {/* 文本输入区域 */}
-          <section className="flex-shrink-0">
-            <div className="bg-bg-card rounded-xl border border-border-light p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-text-primary">输入内容</h2>
-                <span className="text-xs text-text-secondary">{inputText.length} 字符</span>
-              </div>
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="请输入需要写作、改写或润色的文本内容...&#10;按 Enter 提交，Shift + Enter 换行"
-                className="w-full px-3 py-3 rounded-lg border border-border-medium bg-bg-surface text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-none transition-shadow"
-              />
-
-              {/* 改写操作按钮 */}
-              <div className="mt-4 pt-4 border-t border-border-light">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {(Object.keys(REWRITE_ACTIONS) as RewriteAction[]).map((action) => (
-                      <button
-                        key={action}
-                        onClick={() => handleSubmit(action)}
-                        disabled={isLoading || !inputText.trim()}
-                        className="group relative flex items-center gap-2 px-3 py-2 bg-bg-surface hover:bg-bg-surface-hover disabled:bg-text-tertiary/10 disabled:cursor-not-allowed text-text-secondary rounded-lg font-medium transition-all text-sm border border-border-light hover:border-accent/30"
-                      >
-                        {REWRITE_ACTIONS[action].icon}
-                        <span>{REWRITE_ACTIONS[action].label}</span>
-                        <span className="hidden group-hover:inline-flex absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                          {REWRITE_ACTIONS[action].description}
-                        </span>
-                      </button>
-                    ))}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {(Object.keys(PROMPT_TEMPLATES) as PromptTemplate[]).map((templateKey) => {
+              const template = PROMPT_TEMPLATES[templateKey];
+              const isActive = selectedTemplate === templateKey;
+              return (
+                <button
+                  key={templateKey}
+                  onClick={() => setSelectedTemplate(templateKey)}
+                  className={`relative flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 text-left ${
+                    isActive
+                      ? 'border-accent bg-accent/5 shadow-sm'
+                      : 'border-border-light bg-bg-surface hover:border-accent/50 hover:bg-bg-surface-hover'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${
+                    isActive ? 'bg-accent text-white' : 'bg-bg-card text-text-secondary'
+                  }`}>
+                    {template.icon}
                   </div>
-                  <button
-                    onClick={handleDirectSubmit}
-                    disabled={isLoading || !inputText.trim()}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-accent hover:bg-accent-hover disabled:bg-text-tertiary/30 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md text-sm"
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        处理中...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        直接提交
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                        </svg>
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 错误提示 */}
-          {error && (
-            <section className="flex-shrink-0">
-              <div className="p-3 rounded-lg bg-error-bg/10 border border-error text-error text-sm flex items-start gap-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{error}</span>
-              </div>
-            </section>
-          )}
-
-          {/* 消息列表 */}
-          <section className="flex-1 min-h-0 overflow-y-auto bg-bg-card rounded-xl border border-border-light">
-            <MessageList messages={messages} />
-            {isLoading && messages.length > 0 && (
-              <div className="flex justify-start p-4">
-                <div className="bg-bg-surface dark:bg-bg-card rounded-2xl px-4 py-3 border border-border-light">
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-text-primary">{template.label}</div>
+                    <div className="text-xs text-text-secondary mt-0.5 line-clamp-1">{template.description}</div>
                   </div>
-                </div>
-              </div>
-            )}
-            {!isLoading && messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
-                <svg className="w-16 h-16 text-text-tertiary mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                <p className="text-text-secondary text-sm">开始你的写作之旅吧！</p>
-                <p className="text-text-tertiary text-xs mt-1">选择一个写作模式，输入你的内容</p>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </section>
-        </main>
-      </div>
-
-      {!isAuthenticated && (
-        <div className="fixed inset-0 bg-gradient-to-b from-bg-surface to-bg-card dark:from-bg-sidebar dark:to-bg-primary z-50">
-          <PasswordModal />
+                  {isActive && (
+                    <div className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+      </section>
+
+      {/* 文本输入区域 */}
+      <section className="flex-shrink-0">
+        <div className="bg-bg-card rounded-xl border border-border-light p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-text-primary">输入内容</h2>
+            <span className="text-xs text-text-secondary">{inputText.length} 字符</span>
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="请输入需要写作、改写或润色的文本内容...&#10;按 Enter 提交，Shift + Enter 换行"
+            className="w-full px-3 py-3 rounded-lg border border-border-medium bg-bg-surface text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-none transition-shadow"
+          />
+
+          {/* 改写操作按钮 */}
+          <div className="mt-4 pt-4 border-t border-border-light">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(REWRITE_ACTIONS) as RewriteAction[]).map((action) => (
+                  <button
+                    key={action}
+                    onClick={() => handleSubmit(action)}
+                    disabled={isLoading || !inputText.trim()}
+                    className="group relative flex items-center gap-2 px-3 py-2 bg-bg-surface hover:bg-bg-surface-hover disabled:bg-text-tertiary/10 disabled:cursor-not-allowed text-text-secondary rounded-lg font-medium transition-all text-sm border border-border-light hover:border-accent/30"
+                  >
+                    {REWRITE_ACTIONS[action].icon}
+                    <span>{REWRITE_ACTIONS[action].label}</span>
+                    <span className="hidden group-hover:inline-flex absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                      {REWRITE_ACTIONS[action].description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleDirectSubmit}
+                disabled={isLoading || !inputText.trim()}
+                className="w-full sm:w-auto px-6 py-2.5 bg-accent hover:bg-accent-hover disabled:bg-text-tertiary/30 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md text-sm"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    处理中...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    直接提交
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 错误提示 */}
+      {error && (
+        <section className="flex-shrink-0">
+          <div className="p-3 rounded-lg bg-error-bg/10 border border-error text-error text-sm flex items-start gap-2">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        </section>
       )}
-    </div>
+
+      {/* 消息列表 */}
+      <section className="flex-1 min-h-0 overflow-y-auto bg-bg-card rounded-xl border border-border-light">
+        <MessageList messages={messages} />
+        {isLoading && messages.length > 0 && (
+          <div className="flex justify-start p-4">
+            <div className="bg-bg-surface dark:bg-bg-card rounded-2xl px-4 py-3 border border-border-light">
+              <div className="flex gap-1.5">
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        {!isLoading && messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
+            <svg className="w-16 h-16 text-text-tertiary mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <p className="text-text-secondary text-sm">开始你的写作之旅吧！</p>
+            <p className="text-text-tertiary text-xs mt-1">选择一个写作模式，输入你的内容</p>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </section>
+    </SidebarShell>
   );
 }

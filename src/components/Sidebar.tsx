@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { useMessageHistory, type ConversationType, type Conversation } from '@/contexts/MessageHistoryContext';
+import { useMessageHistory, type ConversationType } from '@/contexts/MessageHistoryContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -96,7 +96,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
       )}
 
       {/* 侧边栏 */}
-      <aside className={`fixed top-0 left-0 h-full w-72 bg-bg-sidebar border-r border-border-light z-50 flex flex-col transform transition-transform duration-300 lg:relative lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed top-0 left-0 h-full w-72 bg-bg-sidebar border-r border-border-light z-50 flex flex-col transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* 头部 - 应用导航 */}
         <div className="p-4 border-b border-border-light">
           <nav className="space-y-2">
@@ -155,7 +155,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
               {filteredConversations.map((conv) => (
                 <div
                   key={conv.id}
-                  className={`group flex flex-col cursor-pointer transition-colors ${
+                  className={`group flex flex-col cursor-pointer rounded-lg transition-colors ${
                     currentConversationId === conv.id
                       ? 'bg-accent-subtle text-accent'
                       : 'hover:bg-bg-surface text-text-secondary'
@@ -169,7 +169,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
                         onClose();
                       }
                     }}
-                    className="flex-1 p-3"
+                    className="flex-1 p-3 rounded-lg"
                   >
                     <p className="text-sm font-medium truncate">{conv.title}</p>
                     <p className="text-xs text-text-tertiary mt-0.5">
@@ -178,15 +178,15 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
                   </Link>
 
                   {/* 操作按钮区域 - 悬停显示 */}
-                  <div className={`flex items-center justify-end gap-1 px-3 pb-3 ${currentConversationId === conv.id ? '' : 'opacity-0 group-hover:opacity-100'}`}>
+                  <div className={`flex items-center justify-end gap-1 px-3 pb-3 ${currentConversationId === conv.id ? '' : 'opacity-0 group-hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100'}`}>
                     <button
                       onClick={(e) => handleDelete(e, conv.id)}
                       disabled={deletingId === conv.id}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all disabled:opacity-50"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all disabled:opacity-50"
                       title="删除对话"
                     >
                       <svg
-                        className="w-3.5 h-3.5"
+                        className="w-4 h-4"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -208,7 +208,7 @@ export default function Sidebar({ isOpen, onClose, onNewChat, currentConversatio
         </div>
 
         {/* 底部信息 */}
-        <div className="p-3 border-t border-border-light text-center">
+        <div className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border-light text-center">
           <p className="text-xs text-text-tertiary">Aurora Tutor v1.0</p>
         </div>
       </aside>

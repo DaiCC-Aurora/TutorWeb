@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 import 'highlight.js/styles/github-dark.min.css';
 import 'katex/dist/katex.min.css';
 
@@ -208,12 +208,26 @@ function detectContentType(content: string, mode?: 'chat' | 'solve' | 'visualize
     return { type: 'csv', data: trimmed };
   }
 
-  // 检查是否为 HTML/SVG（包含 HTML 或 SVG 标签）
-  if (/^<html|<!DOCTYPE|<body/i.test(trimmed) ||
-      trimmed.includes('<div') ||
-      trimmed.includes('<svg') ||
-      trimmed.includes('</svg>') ||
-      (trimmed.includes('<') && trimmed.includes('>'))) {
+  // 检查代码块中的 SVG 内容（AI 通常将 SVG 包裹在 ```svg 或 ```xml 代码块中）
+  const svgCodeBlockMatch = trimmed.match(/```(?:svg|xml|html)\s*\n([\s\S]*?)```/i);
+  if (svgCodeBlockMatch) {
+    const codeContent = svgCodeBlockMatch[1];
+    const svgExtract = codeContent.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgExtract) {
+      return { type: 'html', data: svgExtract[0] };
+    }
+  }
+  // 检查纯 SVG 内容（没有代码块包裹）
+  if (!trimmed.includes('```')) {
+    const svgExtract = trimmed.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgExtract) {
+      return { type: 'html', data: svgExtract[0] };
+    }
+  }
+  // 检查是否为完整 HTML 文档（排除 SVG，因为上面已处理）
+  const looksLikeHtml = /^<(html|!DOCTYPE|body|table|article|section|main)\b/i.test(trimmed) ||
+    (/^<\w+[^>]*>[\s\S]*<\/\w+>$/.test(trimmed) && !trimmed.includes('```'));
+  if (looksLikeHtml) {
     return { type: 'html', data: trimmed };
   }
 

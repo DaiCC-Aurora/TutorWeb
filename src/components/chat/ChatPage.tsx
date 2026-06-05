@@ -190,12 +190,16 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
       setMessages((prev) => [...prev, assistantMessage]);
 
       const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
       const decoder = new TextDecoder();
       let accumulatedContent = '';
       let buffer = ''; // 行缓冲，处理跨 chunk 的 SSE 事件分割
 
       while (true) {
-        const { done, value } = await reader!.read();
+        const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
