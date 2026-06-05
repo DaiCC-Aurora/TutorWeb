@@ -1,4 +1,7 @@
 // 工具定义 - 用于 AI 调用的内置工具
+// systemPrompt 从环境变量读取（参见 prompts.ts）
+
+import { TOOL_PROMPTS } from '@/lib/prompts';
 
 export type ToolId = 'web_search' | 'ask_user' | 'web_fetch';
 
@@ -25,17 +28,17 @@ export const TOOL_DEFINITIONS: Record<ToolId, {
   web_search: {
     name: '网络搜索',
     description: '当需要查询实时信息、最新事件或网络内容时使用',
-    systemPrompt: 'When you need to find current information, latest events, or web content, you can use the web_search tool. Format your search query clearly and concisely.',
+    systemPrompt: TOOL_PROMPTS.web_search,
   },
   ask_user: {
     name: '询问用户',
     description: '当需要用户提供额外信息或澄清时使用',
-    systemPrompt: 'When you need additional information from the user or need to clarify something, you can use the ask_user tool. Ask clear, specific questions.',
+    systemPrompt: TOOL_PROMPTS.ask_user,
   },
   web_fetch: {
     name: '网页抓取',
     description: '当需要获取特定网页的内容时使用',
-    systemPrompt: 'When you need to fetch content from a specific URL, you can use the web_fetch tool. Provide the URL you want to fetch.',
+    systemPrompt: TOOL_PROMPTS.web_fetch,
   },
 };
 

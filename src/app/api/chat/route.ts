@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
+import { CHAT_PROMPTS } from '@/lib/prompts';
 
 type ChatMode = 'chat' | 'solve' | 'visualize';
 
@@ -41,18 +42,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 根据模式构建系统提示词
-    const systemPrompts: Record<ChatMode, string> = {
-      chat: 'You are Aurora Tutor, a helpful AI assistant for general conversations, knowledge queries, and creative discussions.',
-      solve: 'You are Aurora Solver, an expert problem-solver. When answering mathematical or logical problems, please:\n1. Break down the problem into clear steps\n2. Show detailed reasoning for each step\n3. Use LaTeX formatting for mathematical expressions (e.g., $x^2 + y^2 = z^2$)\n4. Provide a clear final answer with explanation',
-      visualize: 'You are Aurora Visualizer, specialized in creating visual content. When appropriate, you can:\n1. Generate JSON data structures for charts (e.g., {"chartType": "bar", "data": [...], "labels": [...]})\n2. Create HTML/SVG code for interactive visualizations\n3. Describe visualization concepts clearly\n4. Use CSV format for tabular data display',
-    };
-
-    // 构建消息内容
+    // 构建消息内容 — system prompt 从环境变量读取
     const messagesPayload: Array<{ role: string; content: any }> = [
       {
         role: 'system',
-        content: [{ type: 'text', text: systemPrompts[mode] }],
+        content: [{ type: 'text', text: CHAT_PROMPTS[mode] }],
       },
     ];
 

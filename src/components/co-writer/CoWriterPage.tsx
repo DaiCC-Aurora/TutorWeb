@@ -6,6 +6,7 @@ import MessageList, { type Message } from '@/components/MessageList';
 import SidebarShell from '@/components/SidebarShell';
 import { useMessageHistory } from '@/contexts/MessageHistoryContext';
 import { usePassword } from '@/contexts/PasswordContext';
+import { COWRITER_PROMPTS, REWRITE_PROMPTS } from '@/lib/prompts';
 
 // 提示词模板类型
 type PromptTemplate = 'chinese' | 'english-basic' | 'continue-writing';
@@ -31,7 +32,7 @@ const PROMPT_TEMPLATES: Record<PromptTemplate, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
       </svg>
     ),
-    systemPrompt: '你是一位专业的语文写作辅导老师。请帮助学生提高中文写作能力，包括作文结构、修辞手法、文字表达等方面。提供具体的修改建议和范文参考。',
+    systemPrompt: COWRITER_PROMPTS.chinese,
   },
   'english-basic': {
     label: '英语写作',
@@ -41,7 +42,7 @@ const PROMPT_TEMPLATES: Record<PromptTemplate, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
       </svg>
     ),
-    systemPrompt: 'You are an English writing tutor. Help students improve their basic English writing skills, including grammar, vocabulary, sentence structure, and paragraph organization. Provide clear explanations and examples.',
+    systemPrompt: COWRITER_PROMPTS.english_basic,
   },
   'continue-writing': {
     label: '读后续写',
@@ -52,7 +53,7 @@ const PROMPT_TEMPLATES: Record<PromptTemplate, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
       </svg>
     ),
-    systemPrompt: '你是一位专业的读后续写辅导老师。请根据给定的文章开头，帮助学生构思合理的故事发展，保持人物性格一致，情节连贯，语言风格统一。提供写作思路和范文参考。',
+    systemPrompt: COWRITER_PROMPTS.continue_writing,
   },
 };
 
@@ -71,7 +72,7 @@ const REWRITE_ACTIONS: Record<RewriteAction, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
       </svg>
     ),
-    prompt: '请重新写作以下内容，保持原意但使用不同的表达方式：',
+    prompt: REWRITE_PROMPTS.rewrite,
   },
   'rephrase': {
     label: '改写',
@@ -81,7 +82,7 @@ const REWRITE_ACTIONS: Record<RewriteAction, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     ),
-    prompt: '请对以下内容进行同义改写和润色，使其更加流畅优美：',
+    prompt: REWRITE_PROMPTS.rephrase,
   },
   'expand': {
     label: '扩展',
@@ -91,7 +92,7 @@ const REWRITE_ACTIONS: Record<RewriteAction, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
       </svg>
     ),
-    prompt: '请扩展以下内容，添加更多细节和描述：',
+    prompt: REWRITE_PROMPTS.expand,
   },
   'condense': {
     label: '精简',
@@ -101,7 +102,7 @@ const REWRITE_ACTIONS: Record<RewriteAction, {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
       </svg>
     ),
-    prompt: '请精简以下内容，保留核心信息，去除冗余：',
+    prompt: REWRITE_PROMPTS.condense,
   },
 };
 
