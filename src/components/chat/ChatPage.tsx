@@ -5,8 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import ImageUploader from '@/components/ImageUploader';
 import ChatInput from '@/components/ChatInput';
 import MessageList, { type Message } from '@/components/MessageList';
-import Sidebar from '@/components/Sidebar';
-import PasswordModal from '@/components/PasswordModal';
+import SidebarShell from '@/components/SidebarShell';
 import { useMessageHistory, type Conversation as Conv, type ConversationType } from '@/contexts/MessageHistoryContext';
 import { usePassword } from '@/contexts/PasswordContext';
 import { compressImage } from '@/lib/image-compressor';
@@ -25,16 +24,14 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   const {
     conversations,
     currentConversationId,
-    isLoading: contextLoading,
     createConversation,
     setCurrentConversationId,
     saveMessage,
     loadMessages,
     fetchConversations,
-    deleteConversation,
   } = useMessageHistory();
 
-  const { isAuthenticated, logout } = usePassword();
+  const { logout } = usePassword();
 
   // 模式状态
   const [currentMode, setCurrentMode] = useState<ChatMode>('chat');
@@ -46,7 +43,6 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   const [currentConversation, setCurrentConversation] = useState<Conv | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 初始化时加载会话
@@ -133,22 +129,6 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     setError(null);
     router.push('/chat');
     await fetchConversations('chat');
-    setSidebarOpen(false);
-  };
-
-  const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (confirm('确定要删除这个对话吗？')) {
-      try {
-        await deleteConversation(id);
-        if (currentConversationId === id) {
-          handleNewChat();
-        }
-      } catch (err) {
-        console.error('Failed to delete session:', err);
-        alert('删除失败，请重试');
-      }
-    }
   };
 
   const handleAskQuestion = async (prompt: string) => {
@@ -212,29 +192,38 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let buffer = ''; // 行缓冲，处理跨 chunk 的 SSE 事件分割
 
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // 最后一段可能不完整，保留到下一个 chunk
+        buffer = lines.pop() || '';
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
+
             try {
-              const data = JSON.parse(line.slice(6));
+              const data = JSON.parse(dataStr);
               const content = data.choices?.[0]?.delta?.content || data.choices?.[0]?.text || '';
-              accumulatedContent += content;
-              setMessages((prev) => {
-                const updated = [...prev];
-                const lastIdx = updated.length - 1;
-                if (updated[lastIdx]?.role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-                }
-                return updated;
-              });
+              if (content) {
+                accumulatedContent += content;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastIdx = updated.length - 1;
+                  if (updated[lastIdx]?.role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+                  }
+                  return updated;
+                });
+              }
             } catch (e) {
-              // 忽略解析错误
+              console.warn('SSE parse warning:', e);
             }
           }
         }
@@ -253,118 +242,98 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-surface to-bg-card dark:from-bg-sidebar dark:to-bg-primary flex">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onNewChat={handleNewChat}
-        currentConversationId={currentConversationId}
-      />
+    <SidebarShell
+      title="Aurora Chat"
+      titleIcon={
+        <svg className="w-6 h-6 sm:w-7 sm:h-7 text-accent" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      }
+      headerActions={
+        <>
+          {currentConversation && (
+            <ExportSession
+              conversation={currentConversation}
+              messages={messages}
+            />
+          )}
+          <button
+            onClick={logout}
+            className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded hover:bg-bg-surface"
+          >
+            退出
+          </button>
+        </>
+      }
+      onNewChat={handleNewChat}
+      currentConversationId={currentConversationId}
+      maxWidth="wide"
+    >
+      {/* 模式选择器 */}
+      <section className="flex-shrink-0">
+        <ModeSelector
+          currentMode={currentMode}
+          onChangeMode={(mode) => {
+            setCurrentMode(mode);
+          }}
+        />
+      </section>
 
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        <header className="sticky top-0 z-10 backdrop-blur-sm bg-bg-card/80 dark:bg-bg-primary/80 border-b border-border-light">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 hover:bg-bg-surface dark:hover:bg-bg-card rounded-lg"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h1 className="text-lg sm:text-xl font-bold text-text-primary">
-              Aurora Tutor - {currentMode === 'chat' ? 'Chat' : currentMode === 'solve' ? 'Solve' : 'Visualize'}
-            </h1>
-            <div className="flex items-center gap-2">
-              {/* 会话导出 */}
-              {currentConversation && (
-                <ExportSession
-                  conversation={currentConversation}
-                  messages={messages}
-                />
-              )}
-              <button
-                onClick={logout}
-                className="text-xs text-text-secondary hover:text-text-primary transition-colors"
-              >
-                退出
-              </button>
+      {error && (
+        <section className="flex-shrink-0">
+          <div className="p-3 rounded-lg bg-error-bg/10 border border-error text-error text-sm flex items-start gap-2">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        </section>
+      )}
+
+      <section className="flex-1 min-h-0 overflow-y-auto bg-bg-card rounded-xl border border-border-light p-3 sm:p-4">
+        <MessageList messages={messages} />
+        {isLoading && (
+          <div className="flex justify-start mt-3">
+            <div className="bg-bg-surface dark:bg-bg-card rounded-2xl px-4 py-3">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
             </div>
           </div>
-        </header>
+        )}
+        <div ref={messagesEndRef} />
+      </section>
 
-        <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6 min-h-0">
-          {/* 模式选择器 */}
-          <section className="flex-shrink-0">
-            <ModeSelector
-              currentMode={currentMode}
-              onChangeMode={(mode) => {
-                setCurrentMode(mode);
-                setCurrentMode(mode);
-              }}
-            />
-          </section>
-
-          {error && (
-            <section className="flex-shrink-0">
-              <div className="p-3 rounded-lg bg-error-bg text-error text-sm">
-                {error}
-              </div>
-            </section>
-          )}
-
-          <section className="flex-1 min-h-0 overflow-y-auto bg-bg-card rounded-xl border border-border-light p-3 sm:p-4">
-            <MessageList messages={messages} />
-            {isLoading && (
-              <div className="flex justify-start mt-3">
-                <div className="bg-bg-surface dark:bg-bg-card rounded-2xl px-4 py-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-accent/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-accent/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-accent/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </section>
-
-          <section className="flex-shrink-0">
-            {!previewUrl ? (
-              <ImageUploader
-                onImageSelect={handleImageSelect}
-                onUpload={async () => {}}
+      <section className="flex-shrink-0">
+        {!previewUrl ? (
+          <ImageUploader
+            onImageSelect={handleImageSelect}
+            onUpload={async () => {}}
+          />
+        ) : (
+          <div className="relative w-full max-w-sm mx-auto">
+            <div className="relative aspect-square rounded-lg overflow-hidden bg-bg-surface dark:bg-bg-card border border-border-light">
+              <img
+                src={previewUrl}
+                alt="Selected"
+                className="w-full h-full object-contain"
               />
-            ) : (
-              <div className="relative w-full max-w-sm mx-auto">
-                <div className="relative aspect-square rounded-lg overflow-hidden bg-bg-surface dark:bg-bg-card border border-border-light">
-                  <img
-                    src={previewUrl}
-                    alt="Selected"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <button
-                  onClick={handleClearImage}
-                  className="mt-2 w-full py-2 text-sm text-error hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                >
-                  Remove Image
-                </button>
-              </div>
-            )}
-          </section>
+            </div>
+            <button
+              onClick={handleClearImage}
+              className="mt-2 w-full py-2 text-sm text-error hover:text-red-700 dark:hover:text-red-300 transition-colors"
+            >
+              Remove Image
+            </button>
+          </div>
+        )}
+      </section>
 
-          <section className="flex-shrink-0">
-            <ChatInput onSubmit={handleAskQuestion} disabled={isLoading} />
-          </section>
-        </main>
-      </div>
-
-      {!isAuthenticated && (
-        <div className="fixed inset-0 bg-gradient-to-b from-bg-surface to-bg-card dark:from-bg-sidebar dark:to-bg-primary z-50">
-          <PasswordModal />
-        </div>
-      )}
-    </div>
+      <section className="flex-shrink-0">
+        <ChatInput onSubmit={handleAskQuestion} disabled={isLoading} />
+      </section>
+    </SidebarShell>
   );
 }
