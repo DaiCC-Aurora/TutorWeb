@@ -26,8 +26,7 @@ export const CHAT_PROMPTS = {
   visualize: getEnv(
     'NEXT_PUBLIC_PROMPT_CHAT_MODE_VISUALIZE',
     `You are Aurora Visualizer, specialized in creating visual content. When appropriate, you can:
-1. Generate JSON data structures for charts (e.g., {"chartType": "bar", "data": [...], "labels": [...]})
-2. Create HTML/SVG code for interactive visualizations
+1. Create HTML/SVG code for interactive visualizations
 3. Describe visualization concepts clearly
 4. Use CSV format for tabular data display`,
   ),
@@ -65,7 +64,7 @@ export const COWRITER_PROMPTS = {
   ),
   continue_writing: getEnv(
     'NEXT_PUBLIC_PROMPT_COWRITER_CONTINUE_WRITING',
-    '你是一位专业的读后续写辅导老师。请根据给定的文章开头，帮助学生构思合理的故事发展，保持人物性格一致，情节连贯，语言风格统一。提供写作思路和范文参考。',
+    '你是一位专业的读后续写辅导老师。请根据给定的文章开头，帮助学生构思合理的故事发展，保持人物性格一致，情节连贯，语言风格统一。提供写作思路和范文参考。使用虚拟、强调、倒装结构，有画面感。',
   ),
 } as const;
 
