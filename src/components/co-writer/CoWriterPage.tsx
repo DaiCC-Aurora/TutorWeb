@@ -109,7 +109,7 @@ const REWRITE_ACTIONS: Record<RewriteAction, {
 export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
   const params = useParams();
   const router = useRouter();
-  const sessionIdFromParams = params.sessionId as string | undefined;
+  const sessionIdFromParams = (params.slug as string[] | undefined)?.[0];
 
   const {
     currentConversationId,
@@ -130,6 +130,9 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 标记是否正在创建新对话并发送消息，防止 URL 变化导致的消息重置
+  const isNewConversationRef = useRef(false);
+
   // 自动调整文本框高度
   useEffect(() => {
     if (textareaRef.current) {
@@ -142,6 +145,7 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
   useEffect(() => {
     const targetSessionId = sessionIdFromParams || initialSessionId;
     if (targetSessionId) {
+      if (isNewConversationRef.current) return;
       loadConversationMessages(targetSessionId);
     } else {
       setMessages([]);
@@ -206,10 +210,11 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
     try {
       let conversationId = currentConversationId;
       if (!conversationId) {
+        isNewConversationRef.current = true;
         const title = inputText.slice(0, 30) + (inputText.length > 30 ? '...' : '');
         conversationId = await createConversation(`${template.label} - ${title}`, 'co-writer');
         setCurrentConversationId(conversationId);
-        router.push(`/co-writer/${conversationId}`);
+        window.history.replaceState(null, '', `/co-writer/${conversationId}`);
       }
 
       const formData = new FormData();
@@ -290,6 +295,7 @@ export default function CoWriterPage({ initialSessionId }: CoWriterPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get response');
     } finally {
+      isNewConversationRef.current = false;
       setIsLoading(false);
       setTimeout(scrollToBottom, 100);
     }

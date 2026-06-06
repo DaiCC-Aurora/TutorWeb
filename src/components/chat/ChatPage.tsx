@@ -19,7 +19,7 @@ interface ChatPageProps {
 export default function ChatPage({ initialSessionId }: ChatPageProps) {
   const params = useParams();
   const router = useRouter();
-  const sessionIdFromParams = params.sessionId as string | undefined;
+  const sessionIdFromParams = (params.slug as string[] | undefined)?.[0];
 
   const {
     conversations,
@@ -45,10 +45,14 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 标记是否正在创建新对话并发送消息，防止 URL 变化导致的消息重置
+  const isNewConversationRef = useRef(false);
+
   // 初始化时加载会话
   useEffect(() => {
     const targetSessionId = sessionIdFromParams || initialSessionId;
     if (targetSessionId) {
+      if (isNewConversationRef.current) return;
       loadConversationMessages(targetSessionId);
     } else {
       setMessages([]);
@@ -59,6 +63,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
   // 监听会话 ID 变化，重新加载消息
   useEffect(() => {
     if (sessionIdFromParams && sessionIdFromParams !== currentConversation?.id) {
+      if (isNewConversationRef.current) return;
       loadConversationMessages(sessionIdFromParams);
     }
   }, [sessionIdFromParams]);
@@ -151,6 +156,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     try {
       let conversationId = currentConversationId;
       if (!conversationId) {
+        isNewConversationRef.current = true;
         // 根据模式生成标题前缀
         const modePrefix = currentMode === 'chat' ? '[Chat]' : currentMode === 'solve' ? '[Solve]' : '[Visualize]';
         conversationId = await createConversation(
@@ -158,7 +164,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
           'chat' as ConversationType
         );
         setCurrentConversationId(conversationId);
-        router.push(`/chat/${conversationId}`);
+        window.history.replaceState(null, '', `/chat/${conversationId}`);
       }
 
       const formData = new FormData();
@@ -240,6 +246,7 @@ export default function ChatPage({ initialSessionId }: ChatPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get response');
     } finally {
+      isNewConversationRef.current = false;
       setIsLoading(false);
       setTimeout(scrollToBottom, 100);
     }
