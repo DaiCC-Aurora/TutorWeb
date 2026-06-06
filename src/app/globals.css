@@ -5,6 +5,7 @@
   --bg-primary: #F5F0EB;
   --bg-card: #FFFFFF;
   --bg-surface: #F0EBE5;
+  --bg-surface-hover: #EAE3DC;
   --bg-sidebar: #F0EBE5;
   --text-primary: #1C1B1A;
   --text-secondary: #6B6560;
@@ -30,6 +31,7 @@
   --bg-primary: #1C1B1A;
   --bg-card: #262422;
   --bg-surface: #201E1C;
+  --bg-surface-hover: #2A2724;
   --bg-sidebar: #201E1C;
   --text-primary: #EDE9E3;
   --text-secondary: #9C958E;
@@ -65,6 +67,12 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-light: var(--accent-light);
   --color-accent-subtle: var(--accent-subtle);
+  --color-bg-surface-hover: var(--bg-surface-hover);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-user-bubble: var(--user-bubble);
   --color-user-bubble-text: var(--user-bubble-text);
   --color-ai-bubble: var(--ai-bubble);

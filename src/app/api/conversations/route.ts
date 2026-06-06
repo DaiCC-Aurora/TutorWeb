@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 
-// GET: 获取所有会话列表
+// GET: 获取会话列表，支持按 type 过滤
 export async function GET(request: NextRequest) {
   try {
-    const { data, error } = await getSupabase()
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type'); // 'chat' | 'co-writer'
+
+    let query = getSupabase()
       .from('conversations')
       .select('*')
       .order('updated_at', { ascending: false });
+
+    // 如果指定了 type，按类型过滤
+    if (type && (type === 'chat' || type === 'co-writer')) {
+      query = query.eq('type', type);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Supabase fetch conversations error:', error);
@@ -36,18 +46,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: 创建新会话
+// POST: 创建新会话，支持指定 type
 export async function POST(request: NextRequest) {
   try {
-    const { title } = await request.json();
+    const { title, type } = await request.json();
 
     if (!title || !title.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
+    // type 默认为 'chat'，只允许合法值
+    const conversationType = (type === 'chat' || type === 'co-writer') ? type : 'chat';
+
     const { data, error } = await getSupabase()
       .from('conversations')
-      .insert({ title: title.trim() })
+      .insert({ title: title.trim(), type: conversationType })
       .select()
       .single();
 

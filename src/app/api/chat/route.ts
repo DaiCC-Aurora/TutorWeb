@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
+import { CHAT_PROMPTS } from '@/lib/prompts';
+
+type ChatMode = 'chat' | 'solve' | 'visualize';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +11,7 @@ export async function POST(request: NextRequest) {
     const image = formData.get('image') as File | null;
     const prompt = formData.get('prompt') as string;
     const sessionId = formData.get('sessionId') as string;
+    const mode = (formData.get('mode') as ChatMode) || 'chat';
 
     if (!prompt || !prompt.trim()) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -38,8 +42,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 构建消息内容
-    const messagesPayload: Array<{ role: string; content: any }> = [];
+    // 构建消息内容 — system prompt 从环境变量读取
+    const messagesPayload: Array<{ role: string; content: any }> = [
+      {
+        role: 'system',
+        content: [{ type: 'text', text: CHAT_PROMPTS[mode] }],
+      },
+    ];
 
     if (historyMessages.length > 0) {
       messagesPayload.push(
@@ -104,7 +113,7 @@ export async function POST(request: NextRequest) {
       content: currentContent
     });
 
-    // 调用 ModelScope API（启用流式响应）
+    // 调用 AI API（流式响应）
     const aiResponse = await fetch(`${process.env.AI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -114,21 +123,19 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: process.env.AI_MODEL || 'Qwen/Qwen2.5-VL-72B-Instruct',
         messages: messagesPayload,
-        max_tokens: 2048,
+        max_tokens: 4096,
         stream: true,
+        temperature: mode === 'solve' ? 0.3 : 0.7,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorData = await aiResponse.text();
       console.error('AI API Error:', errorData);
-      return NextResponse.json(
-        { error: `API Error: ${aiResponse.status} ${errorData}` },
-        { status: aiResponse.status }
-      );
+      throw new Error(`API Error: ${aiResponse.status} ${errorData}`);
     }
 
-    // 将 AI API 的流式响应透传给客户端
+    // 将 AI 的流式响应直接透传给客户端
     return new Response(aiResponse.body, {
       headers: {
         'Content-Type': 'text/event-stream',
